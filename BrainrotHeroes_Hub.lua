@@ -816,9 +816,7 @@ local PlaceHeroRemote  = Remotes and Remotes:FindFirstChild("PlaceHero")
 local PickUpHeroRemote = Remotes and Remotes:FindFirstChild("PickUpHero")
 
 local function doFuse()
-    -- Remote detection berdasarkan log
     local PlaceAllRemote = Remotes:FindFirstChild("PlaceAllHeroes") or Remotes:FindFirstChild("PlaceAll")
-    local UnequipRemote  = Remotes:FindFirstChild("UnequipAll") or Remotes:FindFirstChild("UnequipHero")
     
     if not FuseRemote or not GetDataRemote then
         setStatus("❌ Remote tidak lengkap!", Color3.fromRGB(255,80,80)); return 0
@@ -827,7 +825,7 @@ local function doFuse()
     local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
     if not ok or not data or not data.Heroes then return 0 end
 
-    -- Grouping hero
+    -- Grouping hero berdasarkan HeroId
     local groups = {}
     for _, hero in pairs(data.Heroes) do
         local id = hero.HeroId 
@@ -843,40 +841,41 @@ local function doFuse()
         local needed = rank + 1
         
         if #group >= needed then
-            setStatus("⚗️ Fusing " .. heroName .. "...", Color3.fromRGB(180,140,255))
+            setStatus("⚗️ Menaruh " .. heroName .. "...", Color3.fromRGB(180,140,255))
             
-            -- 1. UNEQUIP DULU (Agar bisa masuk mesin)
-            pcall(function() 
-                if UnequipRemote then UnequipRemote:FireServer(group[1].UniqueId) end 
-            end)
-            task.wait(0.5)
-
-            -- 2. PAKAI PLACE ALL (Lebih efisien sesuai gambar)
+            -- 1. MENARUH HERO MENGGUNAKAN UNIQUEID (Berdasarkan Console)
             if PlaceAllRemote then
+                -- Coba gunakan fitur Place All jika tersedia
                 pcall(function() PlaceAllRemote:FireServer(heroName) end)
             else
-                -- Fallback jika PlaceAll tidak ada, pakai loop UniqueId
+                -- Manual place menggunakan UniqueId yang terlihat di F9
                 for i = 1, needed do
-                    pcall(function() PlaceHeroRemote:FireServer(group[i].UniqueId) end)
-                    task.wait(0.2)
+                    local uid = group[i].UniqueId
+                    if uid then
+                        pcall(function() PickUpHeroRemote:FireServer(uid) end)
+                        task.wait(0.3)
+                        pcall(function() PlaceHeroRemote:FireServer(uid) end)
+                        task.wait(0.3)
+                    end
                 end
             end
             
-            task.wait(0.8) -- Tunggu animasi mesin
+            task.wait(1) -- Beri waktu server memproses penempatan hero
 
-            -- 3. INTERAKSI DENGAN TOMBOL MESIN (Gambar 2)
+            -- 2. TEKAN TOMBOL FUSE DI MESIN (Berdasarkan Gambar Mesin)
             local fm = workspace:FindFirstChild("FuseMachine")
-            local btn = fm and fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main")
-            local prompt = btn and btn:FindFirstChildOfClass("ProximityPrompt")
+            -- Cari ProximityPrompt pada bagian tombol mesin
+            local mainPart = fm and fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main")
+            local prompt = mainPart and mainPart:FindFirstChildOfClass("ProximityPrompt")
             
             if prompt then
                 fireproximityprompt(prompt)
                 task.wait(0.5)
             end
 
-            -- 4. TEMBAK REMOTE FUSE FINAL
-            -- Gunakan UniqueId hero pertama sebagai referensi
+            -- 3. EKSEKUSI REMOTE FUSE FINAL
             local fOk, fRes = pcall(function() 
+                -- Kirimkan UniqueId hero utama untuk difuse
                 return FuseRemote:InvokeServer(group[1].UniqueId) 
             end)
             
