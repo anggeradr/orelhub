@@ -63,8 +63,8 @@ local RARITY_COLOR = {
     Legendary=Color3.fromRGB(255,165,0), Mythic=Color3.fromRGB(255,50,50),
     Godly=Color3.fromRGB(255,215,0), Secret=Color3.fromRGB(180,180,180),
 }
-local TABS      = {"Buy Hero","Auto Farm","Settings"}
-local TAB_ICONS = {"🛒","⚔️","⚙️"}
+local TABS      = {"Buy Hero","Auto Farm","Fusion","Settings"}
+local TAB_ICONS = {"🛒","⚔️","⚗️","⚙️"}
 
 -- ============================================================
 --  CLEANUP
@@ -780,10 +780,109 @@ acToggle.onChange(function(state)
     end
 end)
 
+
 -- ============================================================
---  PAGE 3: SETTINGS
+--  PAGE 3: FUSION
 -- ============================================================
-local setPage=pages[3]
+local fusePage=pages[3]
+local fuseRunning=false
+local FuseRemote=Remotes and Remotes:FindFirstChild("AttemptFuseHero")
+local GetDataRemote=Remotes and Remotes:FindFirstChild("GetPlayerData")
+
+makeLabel(fusePage,"⚗️  Auto Fuse Hero",14,Color3.fromRGB(200,180,255),1)
+makeSep(fusePage,2)
+makeLabel(fusePage,"Otomatis fuse hero yang punya 2+ copy di inventory.",11,Color3.fromRGB(130,130,180),3)
+makeSep(fusePage,4)
+
+-- Status card
+local fuseCard=Instance.new("Frame",fusePage)
+fuseCard.Size=UDim2.new(1,0,0,44); fuseCard.BackgroundColor3=Color3.fromRGB(20,18,40)
+fuseCard.BorderSizePixel=0; fuseCard.ZIndex=5; fuseCard.LayoutOrder=5
+Instance.new("UICorner",fuseCard).CornerRadius=UDim.new(0,8)
+Instance.new("UIStroke",fuseCard).Color=Color3.fromRGB(100,60,200)
+local fuseTxt=Instance.new("TextLabel",fuseCard)
+fuseTxt.Size=UDim2.new(1,-16,1,0); fuseTxt.Position=UDim2.new(0,8,0,0)
+fuseTxt.BackgroundTransparency=1; fuseTxt.TextWrapped=true
+fuseTxt.Text="⚗️  Remote: "..(FuseRemote and "✅ Ditemukan" or "❌ Tidak ditemukan")
+fuseTxt.TextColor3=Color3.fromRGB(180,140,255); fuseTxt.TextSize=11
+fuseTxt.Font=Enum.Font.Gotham; fuseTxt.TextXAlignment=Enum.TextXAlignment.Left; fuseTxt.ZIndex=6
+
+makeSep(fusePage,6)
+
+-- Fuse once button
+local fuseOnceBtn=makeBtn(fusePage,"⚗️  Fuse Sekarang",Color3.fromRGB(100,50,200),7)
+
+local function doFuse()
+    if not FuseRemote or not GetDataRemote then
+        setStatus("❌ Remote Fusion tidak ditemukan",Color3.fromRGB(255,80,80)); return 0
+    end
+    local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
+    if not ok or not data or not data.Heroes then
+        setStatus("❌ Gagal ambil data hero",Color3.fromRGB(255,80,80)); return 0
+    end
+
+    -- Kelompokkan hero berdasarkan HeroId
+    local groups = {}
+    for _, hero in pairs(data.Heroes) do
+        local id = hero.HeroId
+        if id then
+            if not groups[id] then groups[id] = {} end
+            table.insert(groups[id], hero)
+        end
+    end
+
+    local fuseCount = 0
+    for id, group in pairs(groups) do
+        if #group >= 2 then
+            local ok2, res = pcall(function()
+                return FuseRemote:InvokeServer(group[1])
+            end)
+            if ok2 then
+                fuseCount += 1
+                setStatus("⚗️ Fuse "..id.." berhasil! ("..fuseCount.."x)",Color3.fromRGB(180,140,255))
+                task.wait(0.5)
+            end
+        end
+    end
+
+    if fuseCount == 0 then
+        setStatus("⚠️ Tidak ada hero yang bisa di-fuse",Color3.fromRGB(255,180,50))
+    else
+        setStatus("✅ Total "..fuseCount.." fuse berhasil!",Color3.fromRGB(50,220,100))
+    end
+    return fuseCount
+end
+
+fuseOnceBtn.MouseButton1Click:Connect(function()
+    fuseOnceBtn.Active=false; fuseOnceBtn.BackgroundColor3=Color3.fromRGB(60,30,120)
+    doFuse()
+    task.wait(0.5)
+    fuseOnceBtn.Active=true; fuseOnceBtn.BackgroundColor3=Color3.fromRGB(100,50,200)
+end)
+
+makeSep(fusePage,8)
+
+-- Auto fuse toggle
+local fuseToggle=makeToggle(fusePage,"⚗️  Auto Fuse",false,9)
+fuseToggle.onChange(function(state)
+    fuseRunning=state
+    if state then
+        setStatus("⚗️ Auto Fuse ON",Color3.fromRGB(180,140,255))
+        task.spawn(function()
+            while fuseRunning do
+                doFuse()
+                task.wait(5)
+            end
+        end)
+    else
+        setStatus("✅ Auto Fuse dimatikan",Color3.fromRGB(100,220,130))
+    end
+end)
+
+-- ============================================================
+--  PAGE 4: SETTINGS
+-- ============================================================
+local setPage=pages[4]
 makeLabel(setPage,"⚙️  Settings",14,Color3.fromRGB(200,200,255),1)
 makeSep(setPage,2)
 makeToggle(setPage,"Tampilkan Notifikasi",true,3)
@@ -795,7 +894,7 @@ resetBtn.MouseButton1Click:Connect(function()
     setStatus("✅ Posisi di-reset",Color3.fromRGB(100,220,130))
 end)
 local closeAllBtn=makeBtn(setPage,"❌  Tutup Hub",Color3.fromRGB(180,40,40),6)
-closeAllBtn.MouseButton1Click:Connect(function() collectRunning=false; Gui:Destroy() end)
+closeAllBtn.MouseButton1Click:Connect(function() collectRunning=false; fuseRunning=false; Gui:Destroy() end)
 
 -- ============================================================
 --  WINDOW CONTROLS
