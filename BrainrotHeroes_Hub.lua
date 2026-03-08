@@ -816,19 +816,18 @@ local PlaceHeroRemote  = Remotes and Remotes:FindFirstChild("PlaceHero")
 local PickUpHeroRemote = Remotes and Remotes:FindFirstChild("PickUpHero")
 
 local function doFuse()
-    -- Ambil remote tambahan untuk Unequip jika ada
-    local UnequipRemote = Remotes:FindFirstChild("UnequipHero") or Remotes:FindFirstChild("Unequip")
+    -- Remote detection berdasarkan log
+    local PlaceAllRemote = Remotes:FindFirstChild("PlaceAllHeroes") or Remotes:FindFirstChild("PlaceAll")
+    local UnequipRemote  = Remotes:FindFirstChild("UnequipAll") or Remotes:FindFirstChild("UnequipHero")
     
-    if not FuseRemote or not GetDataRemote or not PlaceHeroRemote then
-        setStatus("❌ Remote missing!", Color3.fromRGB(255,80,80)); return 0
+    if not FuseRemote or not GetDataRemote then
+        setStatus("❌ Remote tidak lengkap!", Color3.fromRGB(255,80,80)); return 0
     end
 
     local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
-    if not ok or not data or not data.Heroes then
-        setStatus("❌ Gagal ambil data", Color3.fromRGB(255,80,80)); return 0
-    end
+    if not ok or not data or not data.Heroes then return 0 end
 
-    -- Grouping berdasarkan HeroId
+    -- Grouping hero
     local groups = {}
     for _, hero in pairs(data.Heroes) do
         local id = hero.HeroId 
@@ -839,58 +838,51 @@ local function doFuse()
     end
 
     local fuseCount = 0
-    for id, group in pairs(groups) do
+    for heroName, group in pairs(groups) do
         local rank = group[1].Rank or 1
         local needed = rank + 1
         
         if #group >= needed then
-            setStatus("⚗️ Proses " .. id .. "...", Color3.fromRGB(180,140,255))
+            setStatus("⚗️ Fusing " .. heroName .. "...", Color3.fromRGB(180,140,255))
             
-            local successPlaced = 0
-            for i = 1, needed do
-                local h = group[i]
-                local uid = h.UniqueId 
-                
-                if uid then
-                    -- 1. AUTO UNEQUIP (Penting agar bisa di-place)
-                    if UnequipRemote then
-                        pcall(function() UnequipRemote:FireServer(uid) end)
-                        task.wait(0.2)
-                    end
+            -- 1. UNEQUIP DULU (Agar bisa masuk mesin)
+            pcall(function() 
+                if UnequipRemote then UnequipRemote:FireServer(group[1].UniqueId) end 
+            end)
+            task.wait(0.5)
 
-                    -- 2. RESET SLOT (PickUp)
-                    pcall(function() PickUpHeroRemote:FireServer(uid) end)
-                    task.wait(0.3)
-                    
-                    -- 3. PLACE HERO (Menggunakan UniqueId dari Console)
-                    local pOk, pErr = pcall(function() return PlaceHeroRemote:FireServer(uid) end)
-                    if pOk then 
-                        successPlaced += 1 
-                        print("Successfully placed: " .. id .. " (" .. uid .. ")")
-                    else
-                        warn("Failed to place: " .. tostring(pErr))
-                    end
-                    task.wait(0.3)
+            -- 2. PAKAI PLACE ALL (Lebih efisien sesuai gambar)
+            if PlaceAllRemote then
+                pcall(function() PlaceAllRemote:FireServer(heroName) end)
+            else
+                -- Fallback jika PlaceAll tidak ada, pakai loop UniqueId
+                for i = 1, needed do
+                    pcall(function() PlaceHeroRemote:FireServer(group[i].UniqueId) end)
+                    task.wait(0.2)
                 end
             end
             
-            -- 4. EKSEKUSI FUSE FINAL
-            if successPlaced >= needed then
+            task.wait(0.8) -- Tunggu animasi mesin
+
+            -- 3. INTERAKSI DENGAN TOMBOL MESIN (Gambar 2)
+            local fm = workspace:FindFirstChild("FuseMachine")
+            local btn = fm and fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main")
+            local prompt = btn and btn:FindFirstChildOfClass("ProximityPrompt")
+            
+            if prompt then
+                fireproximityprompt(prompt)
                 task.wait(0.5)
-                -- Beberapa game butuh UniqueId hero utama, beberapa butuh HeroId (string)
-                -- Kita coba pakai UniqueId dulu sesuai log console
-                local targetUid = group[1].UniqueId
-                local fOk, fRes = pcall(function() 
-                    return FuseRemote:InvokeServer(targetUid) 
-                end)
-                
-                if fOk then
-                    fuseCount += 1
-                    setStatus("✅ Fuse " .. id .. " Berhasil!", Color3.fromRGB(50,220,100))
-                else
-                    -- Jika gagal dengan UniqueId, coba kirim HeroId-nya saja
-                    pcall(function() FuseRemote:InvokeServer(id) end)
-                end
+            end
+
+            -- 4. TEMBAK REMOTE FUSE FINAL
+            -- Gunakan UniqueId hero pertama sebagai referensi
+            local fOk, fRes = pcall(function() 
+                return FuseRemote:InvokeServer(group[1].UniqueId) 
+            end)
+            
+            if fOk then
+                fuseCount += 1
+                setStatus("✅ " .. heroName .. " Berhasil di-Fuse!", Color3.fromRGB(50,220,100))
             end
             task.wait(1)
         end
