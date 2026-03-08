@@ -812,10 +812,22 @@ makeSep(fusePage,6)
 -- Fuse once button
 local fuseOnceBtn=makeBtn(fusePage,"⚗️  Fuse Sekarang",Color3.fromRGB(100,50,200),7)
 
+local FM = workspace:FindFirstChild("FuseMachine")
+local placePrompt = FM and FM:FindFirstChild("Place") and FM.Place:FindFirstChild("Base") and FM.Place.Base:FindFirstChildOfClass("ProximityPrompt")
+local ctrlPrompt  = FM and FM:FindFirstChild("Control") and FM.Control:FindFirstChild("Main") and FM.Control.Main:FindFirstChildOfClass("ProximityPrompt")
+
 local function doFuse()
     if not FuseRemote or not GetDataRemote then
         setStatus("❌ Remote Fusion tidak ditemukan",Color3.fromRGB(255,80,80)); return 0
     end
+    -- Refresh FM prompts setiap kali (bisa berubah)
+    local fm = workspace:FindFirstChild("FuseMachine")
+    local pp = fm and fm:FindFirstChild("Place") and fm.Place:FindFirstChild("Base") and fm.Place.Base:FindFirstChildOfClass("ProximityPrompt")
+    local cp = fm and fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main") and fm.Control.Main:FindFirstChildOfClass("ProximityPrompt")
+    if not pp or not cp then
+        setStatus("❌ FuseMachine prompt tidak ditemukan",Color3.fromRGB(255,80,80)); return 0
+    end
+
     local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
     if not ok or not data or not data.Heroes then
         setStatus("❌ Gagal ambil data hero",Color3.fromRGB(255,80,80)); return 0
@@ -833,15 +845,30 @@ local function doFuse()
 
     local fuseCount = 0
     for id, group in pairs(groups) do
-        if #group >= 2 then
+        -- Butuh Rank+1 hero untuk fuse (min 2)
+        local rank = group[1].Rank or 1
+        local needed = rank + 1
+        if #group >= needed then
+            setStatus("⚗️ Fusing "..id.." (butuh "..needed..")...",Color3.fromRGB(180,140,255))
+            -- Step 1: place hero ke FuseMachine
+            for i = 1, needed do
+                pcall(function() fireproximityprompt(pp) end)
+                task.wait(0.4)
+            end
+            -- Step 2: fire control prompt
+            pcall(function() fireproximityprompt(cp) end)
+            task.wait(0.5)
+            -- Step 3: invoke fuse
             local ok2, res = pcall(function()
                 return FuseRemote:InvokeServer(group[1])
             end)
             if ok2 then
                 fuseCount += 1
-                setStatus("⚗️ Fuse "..id.." berhasil! ("..fuseCount.."x)",Color3.fromRGB(180,140,255))
-                task.wait(0.5)
+                setStatus("✅ Fuse "..id.." berhasil! ("..fuseCount.."x)",Color3.fromRGB(50,220,100))
+            else
+                setStatus("❌ Fuse "..id.." gagal: "..tostring(res),Color3.fromRGB(255,80,80))
             end
+            task.wait(0.5)
         end
     end
 
