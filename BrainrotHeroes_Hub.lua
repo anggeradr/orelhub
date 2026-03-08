@@ -817,32 +817,18 @@ local PickUpHeroRemote = Remotes and Remotes:FindFirstChild("PickUpHero")
 
 local function doFuse()
     if not FuseRemote or not GetDataRemote or not PlaceHeroRemote or not PickUpHeroRemote then
-        setStatus("❌ Remote Error", Color3.fromRGB(255,80,80)); return 0
+        setStatus("❌ Remote missing!", Color3.fromRGB(255,80,80)); return 0
     end
 
-    -- 1. CEK JARAK (PENTING!)
-    -- Banyak game membatalkan Remote jika player jauh dari mesin
-    local fm = workspace:FindFirstChild("FuseMachine")
-    local mainPart = fm and (fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main") or fm:FindFirstChild("Main"))
-    
-    if mainPart then
-        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - mainPart.Position).Magnitude
-        if dist > 15 then
-            setStatus("📍 Dekati Fuse Machine dulu!", Color3.fromRGB(255,150,50))
-            return 0
-        end
-    end
-
-    -- 2. AMBIL DATA HERO TERBARU
     local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
     if not ok or not data or not data.Heroes then
         setStatus("❌ Gagal ambil data", Color3.fromRGB(255,80,80)); return 0
     end
 
-    -- 3. GROUPING BERDASARKAN HEROID (Nama Jenis Hero)
+    -- Grouping berdasarkan HeroId (Contoh: Paladin, Pirate)
     local groups = {}
     for _, hero in pairs(data.Heroes) do
-        local id = hero.HeroId or hero.Name -- Cek mana yang dipakai game
+        local id = hero.HeroId 
         if id then
             if not groups[id] then groups[id] = {} end
             table.insert(groups[id], hero)
@@ -855,36 +841,33 @@ local function doFuse()
         local needed = rank + 1
         
         if #group >= needed then
-            setStatus("⚗️ Menyiapkan " .. id .. "...", Color3.fromRGB(180,140,255))
+            setStatus("⚗️ Menaruh " .. id .. " (Butuh " .. needed .. ")", Color3.fromRGB(180,140,255))
             
-            -- 4. PROSES TARUH HERO (PLACE)
             local successPlaced = 0
             for i = 1, needed do
-                local heroData = group[i]
-                -- Gunakan UUID jika ada, jika tidak pakai tabel heroData langsung
-                local identifier = heroData.UUID or heroData.Id or heroData
-
-                -- Kita coba PickUp dulu baru Place (urutan standar simulator)
-                pcall(function() PickUpHeroRemote:FireServer(identifier) end)
-                task.wait(0.3) 
+                local h = group[i]
+                -- BERDASARKAN LOG: Game menggunakan UniqueId
+                local uid = h.UniqueId 
                 
-                local pOk, pErr = pcall(function() return PlaceHeroRemote:FireServer(identifier) end)
-                if pOk then
-                    successPlaced += 1
+                if uid then
+                    -- 1. PickUp dulu untuk memastikan slot bersih
+                    pcall(function() PickUpHeroRemote:FireServer(uid) end)
+                    task.wait(0.4)
+                    
+                    -- 2. Place hero menggunakan UniqueId
+                    local pOk = pcall(function() return PlaceHeroRemote:FireServer(uid) end)
+                    if pOk then successPlaced += 1 end
+                    task.wait(0.4)
                 end
-                task.wait(0.3)
             end
             
-            -- 5. EKSEKUSI FUSE JIKA SEMUA SUDAH DI SLOT
+            -- Jika semua hero berhasil ditaruh, baru tembak Remote Fuse
             if successPlaced >= needed then
                 task.wait(0.5)
-                -- Trigger tombol fisik mesin (opsional tapi disarankan)
-                local prompt = mainPart:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then fireproximityprompt(prompt) end
-                
-                task.wait(0.5)
+                -- Gunakan UniqueId hero pertama sebagai referensi fusion
+                local targetUid = group[1].UniqueId
                 local fOk, fRes = pcall(function() 
-                    return FuseRemote:InvokeServer(group[1].UUID or group[1]) 
+                    return FuseRemote:InvokeServer(targetUid) 
                 end)
                 
                 if fOk then
@@ -894,7 +877,7 @@ local function doFuse()
                     setStatus("⚠️ Fuse Gagal: " .. tostring(fRes), Color3.fromRGB(255,100,100))
                 end
             else
-                setStatus("⚠️ Gagal menaruh hero di slot", Color3.fromRGB(255,150,50))
+                setStatus("⚠️ Gagal menaruh semua hero", Color3.fromRGB(255,150,50))
             end
             task.wait(1)
         end
