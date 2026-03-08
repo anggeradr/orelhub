@@ -812,17 +812,18 @@ makeSep(fusePage,6)
 -- Fuse once button
 local fuseOnceBtn=makeBtn(fusePage,"⚗️  Fuse Sekarang",Color3.fromRGB(100,50,200),7)
 
-local PlaceHeroRemote = Remotes and Remotes:FindFirstChild("PlaceHero")
+local PlaceHeroRemote  = Remotes and Remotes:FindFirstChild("PlaceHero")
+local PickUpHeroRemote = Remotes and Remotes:FindFirstChild("PickUpHero")
 
 local function doFuse()
-    if not FuseRemote or not GetDataRemote or not PlaceHeroRemote then
+    if not FuseRemote or not GetDataRemote or not PlaceHeroRemote or not PickUpHeroRemote then
         setStatus("❌ Remote Fusion tidak ditemukan",Color3.fromRGB(255,80,80)); return 0
     end
 
     local fm = workspace:FindFirstChild("FuseMachine")
     local cp = fm and fm:FindFirstChild("Control") and fm.Control:FindFirstChild("Main") and fm.Control.Main:FindFirstChildOfClass("ProximityPrompt")
     if not cp then
-        setStatus("❌ FuseMachine CtrlPrompt tidak ditemukan",Color3.fromRGB(255,80,80)); return 0
+        setStatus("❌ FuseMachine tidak ditemukan — dekati FuseMachine dulu!",Color3.fromRGB(255,80,80)); return 0
     end
 
     local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
@@ -847,8 +848,10 @@ local function doFuse()
         local needed = rank + 1
         if #group >= needed then
             setStatus("⚗️ Fusing "..id.." (Rank "..rank..", butuh "..needed..")...",Color3.fromRGB(180,140,255))
-            -- Step 1: FireServer PlaceHero per hero
+            -- Step 1: PickUp lalu Place tiap hero
             for i = 1, needed do
+                pcall(function() PickUpHeroRemote:FireServer(group[i]) end)
+                task.wait(0.4)
                 pcall(function() PlaceHeroRemote:FireServer(group[i]) end)
                 task.wait(0.4)
             end
