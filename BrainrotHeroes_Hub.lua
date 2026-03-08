@@ -816,7 +816,10 @@ local PlaceHeroRemote  = Remotes and Remotes:FindFirstChild("PlaceHero")
 local PickUpHeroRemote = Remotes and Remotes:FindFirstChild("PickUpHero")
 
 local function doFuse()
-    if not FuseRemote or not GetDataRemote or not PlaceHeroRemote or not PickUpHeroRemote then
+    -- Ambil remote tambahan untuk Unequip jika ada
+    local UnequipRemote = Remotes:FindFirstChild("UnequipHero") or Remotes:FindFirstChild("Unequip")
+    
+    if not FuseRemote or not GetDataRemote or not PlaceHeroRemote then
         setStatus("❌ Remote missing!", Color3.fromRGB(255,80,80)); return 0
     end
 
@@ -825,7 +828,7 @@ local function doFuse()
         setStatus("❌ Gagal ambil data", Color3.fromRGB(255,80,80)); return 0
     end
 
-    -- Grouping berdasarkan HeroId (Contoh: Paladin, Pirate)
+    -- Grouping berdasarkan HeroId
     local groups = {}
     for _, hero in pairs(data.Heroes) do
         local id = hero.HeroId 
@@ -841,30 +844,41 @@ local function doFuse()
         local needed = rank + 1
         
         if #group >= needed then
-            setStatus("⚗️ Menaruh " .. id .. " (Butuh " .. needed .. ")", Color3.fromRGB(180,140,255))
+            setStatus("⚗️ Proses " .. id .. "...", Color3.fromRGB(180,140,255))
             
             local successPlaced = 0
             for i = 1, needed do
                 local h = group[i]
-                -- BERDASARKAN LOG: Game menggunakan UniqueId
                 local uid = h.UniqueId 
                 
                 if uid then
-                    -- 1. PickUp dulu untuk memastikan slot bersih
+                    -- 1. AUTO UNEQUIP (Penting agar bisa di-place)
+                    if UnequipRemote then
+                        pcall(function() UnequipRemote:FireServer(uid) end)
+                        task.wait(0.2)
+                    end
+
+                    -- 2. RESET SLOT (PickUp)
                     pcall(function() PickUpHeroRemote:FireServer(uid) end)
-                    task.wait(0.4)
+                    task.wait(0.3)
                     
-                    -- 2. Place hero menggunakan UniqueId
-                    local pOk = pcall(function() return PlaceHeroRemote:FireServer(uid) end)
-                    if pOk then successPlaced += 1 end
-                    task.wait(0.4)
+                    -- 3. PLACE HERO (Menggunakan UniqueId dari Console)
+                    local pOk, pErr = pcall(function() return PlaceHeroRemote:FireServer(uid) end)
+                    if pOk then 
+                        successPlaced += 1 
+                        print("Successfully placed: " .. id .. " (" .. uid .. ")")
+                    else
+                        warn("Failed to place: " .. tostring(pErr))
+                    end
+                    task.wait(0.3)
                 end
             end
             
-            -- Jika semua hero berhasil ditaruh, baru tembak Remote Fuse
+            -- 4. EKSEKUSI FUSE FINAL
             if successPlaced >= needed then
                 task.wait(0.5)
-                -- Gunakan UniqueId hero pertama sebagai referensi fusion
+                -- Beberapa game butuh UniqueId hero utama, beberapa butuh HeroId (string)
+                -- Kita coba pakai UniqueId dulu sesuai log console
                 local targetUid = group[1].UniqueId
                 local fOk, fRes = pcall(function() 
                     return FuseRemote:InvokeServer(targetUid) 
@@ -874,17 +888,15 @@ local function doFuse()
                     fuseCount += 1
                     setStatus("✅ Fuse " .. id .. " Berhasil!", Color3.fromRGB(50,220,100))
                 else
-                    setStatus("⚠️ Fuse Gagal: " .. tostring(fRes), Color3.fromRGB(255,100,100))
+                    -- Jika gagal dengan UniqueId, coba kirim HeroId-nya saja
+                    pcall(function() FuseRemote:InvokeServer(id) end)
                 end
-            else
-                setStatus("⚠️ Gagal menaruh semua hero", Color3.fromRGB(255,150,50))
             end
             task.wait(1)
         end
     end
     return fuseCount
 end
-
 fuseOnceBtn.MouseButton1Click:Connect(function()
     fuseOnceBtn.Active=false; fuseOnceBtn.BackgroundColor3=Color3.fromRGB(60,30,120)
     doFuse()
