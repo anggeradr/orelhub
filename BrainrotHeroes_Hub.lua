@@ -1,5 +1,5 @@
 -- ============================================================
---  Brainrot Heroes | Script Hub v6
+--  Brainrot Heroes | Script Hub v7
 --  Executor : Delta
 --  Auto Collect: CollectBrainrotIncome(brainrotObject) per slot
 -- ============================================================
@@ -22,11 +22,15 @@ local CollectOneRemote = Remotes and Remotes:FindFirstChild("CollectBrainrotInco
 local function getPlayerBase()
     local Bases = workspace:FindFirstChild("Bases")
     if not Bases then return nil end
+    -- Base dinamai dengan angka, cari base milik player via CurrentBrainrot atau Children
+    -- Coba semua base, cari yang punya Brainrots folder dengan isi
     for _, base in pairs(Bases:GetChildren()) do
         local brainrots = base:FindFirstChild("Brainrots")
         if brainrots and #brainrots:GetChildren() > 0 then
+            -- Cek apakah ini base milik local player via PlayerSpawn atau tag
             local playerSpawn = base:FindFirstChild("PlayerSpawn")
             if playerSpawn then
+                -- Cek via attribute atau StringValue owner
                 local owner = base:GetAttribute("Owner") or base:GetAttribute("Player")
                 if owner == LocalPlayer.Name or owner == LocalPlayer.UserId then
                     return base
@@ -34,6 +38,7 @@ local function getPlayerBase()
             end
         end
     end
+    -- Fallback: ambil base yang ada Brainrots pertama (base sendiri biasanya sudah terisi)
     for _, base in pairs(Bases:GetChildren()) do
         local brainrots = base:FindFirstChild("Brainrots")
         if brainrots and #brainrots:GetChildren() > 0 then
@@ -58,8 +63,8 @@ local RARITY_COLOR = {
     Legendary=Color3.fromRGB(255,165,0), Mythic=Color3.fromRGB(255,50,50),
     Godly=Color3.fromRGB(255,215,0), Secret=Color3.fromRGB(180,180,180),
 }
-local TABS      = {"Buy Hero","Auto Farm","Fusion","Settings"}
-local TAB_ICONS = {"🛒","⚔️","⚗️","⚙️"}
+local TABS      = {"Buy Hero","Auto Farm","Best Hero","Settings"}
+local TAB_ICONS = {"🛒","⚔️","⭐","⚙️"}
 
 -- ============================================================
 --  CLEANUP
@@ -342,8 +347,9 @@ local buyPage=pages[1]
 local selectedRarity="Rare"
 local selectedHeroName=""
 local dropOpen=false
-local buyMode="rarity"
+local buyMode="rarity" -- "rarity" atau "name"
 
+-- Mode selector
 local modeRow = Instance.new("Frame",buyPage)
 modeRow.Size=UDim2.new(1,0,0,32); modeRow.BackgroundColor3=Color3.fromRGB(20,20,38)
 modeRow.BorderSizePixel=0; modeRow.ZIndex=5; modeRow.LayoutOrder=1
@@ -365,6 +371,7 @@ end
 local modeRarityBtn = makeModeBtn("🎲 Rarity",true)
 local modeNameBtn   = makeModeBtn("🔤 Nama Hero",false)
 
+-- Rarity section
 local raritySection = Instance.new("Frame",buyPage)
 raritySection.Size=UDim2.new(1,0,0,38); raritySection.BackgroundTransparency=1
 raritySection.BorderSizePixel=0; raritySection.ZIndex=5; raritySection.LayoutOrder=2
@@ -414,13 +421,15 @@ for i,rarity in ipairs(RARITIES) do
 end
 dropBtn.MouseButton1Click:Connect(function() if dropOpen then closeDropdown() else openDropdown() end end)
 
+-- Hero list
 local HERO_NAMES = {
     "Warrior","Archer","Mage","Viking","Ninja","Assassin",
     "Alchemist","Gunslinger","Samurai","Necromancer","Paladin",
     "Bomber","Caveman","Pirate","Chef","Cyborg","Mummy"
 }
-local selectedHeroes = {}
+local selectedHeroes = {} -- table nama hero yang dipilih
 
+-- Name section
 local nameSection = Instance.new("Frame",buyPage)
 nameSection.Size=UDim2.new(1,0,0,38); nameSection.BackgroundTransparency=1
 nameSection.BorderSizePixel=0; nameSection.ZIndex=5; nameSection.LayoutOrder=3
@@ -443,6 +452,7 @@ Instance.new("UICorner",nameDropBtn).CornerRadius=UDim.new(0,8)
 local nameDropStroke=Instance.new("UIStroke",nameDropBtn)
 nameDropStroke.Color=Color3.fromRGB(80,80,160); nameDropStroke.Thickness=1.2
 
+-- Multi-select dropdown list
 local nameDropList=Instance.new("Frame",Win)
 nameDropList.Size=UDim2.new(1,-16,0,0); nameDropList.Position=UDim2.new(0,8,0,0)
 nameDropList.BackgroundColor3=Color3.fromRGB(22,22,42); nameDropList.BorderSizePixel=0
@@ -450,6 +460,7 @@ nameDropList.ClipsDescendants=true; nameDropList.ZIndex=20; nameDropList.Visible
 Instance.new("UICorner",nameDropList).CornerRadius=UDim.new(0,8)
 Instance.new("UIStroke",nameDropList).Color=Color3.fromRGB(80,80,160)
 
+-- ScrollingFrame agar bisa di-scroll
 local nameDropScroll=Instance.new("ScrollingFrame",nameDropList)
 nameDropScroll.Size=UDim2.new(1,0,1,0)
 nameDropScroll.BackgroundTransparency=1; nameDropScroll.BorderSizePixel=0
@@ -463,6 +474,7 @@ local ndPad=Instance.new("UIPadding",nameDropScroll)
 ndPad.PaddingTop=UDim.new(0,4); ndPad.PaddingRight=UDim.new(0,6)
 
 local NAME_DROP_MAX_H=180
+
 local nameDropOpen=false
 local heroItemBtns={}
 
@@ -484,12 +496,14 @@ local function openNameDropdown()
     TweenService:Create(nameDropList,TweenInfo.new(0.15),{Size=UDim2.new(1,-16,0,NAME_DROP_MAX_H)}):Play()
 end
 
+-- Populate hero items
 for i,heroName in ipairs(HERO_NAMES) do
     local item=Instance.new("Frame",nameDropScroll)
     item.Size=UDim2.new(1,0,0,34); item.BackgroundColor3=Color3.fromRGB(28,28,52)
     item.BorderSizePixel=0; item.LayoutOrder=i; item.ZIndex=21
     Instance.new("UICorner",item).CornerRadius=UDim.new(0,6)
 
+    -- Checkbox
     local checkbox=Instance.new("Frame",item)
     checkbox.Size=UDim2.new(0,18,0,18); checkbox.Position=UDim2.new(0,8,0.5,-9)
     checkbox.BackgroundColor3=Color3.fromRGB(40,40,70); checkbox.BorderSizePixel=0; checkbox.ZIndex=22
@@ -545,6 +559,7 @@ nameDropBtn.MouseButton1Click:Connect(function()
     if nameDropOpen then closeNameDropdown() else openNameDropdown() end
 end)
 
+-- Mode switch logic
 local function setMode(mode)
     buyMode=mode
     if mode=="rarity" then
@@ -562,6 +577,9 @@ modeNameBtn.MouseButton1Click:Connect(function() setMode("name") end)
 
 makeSep(buyPage,4)
 
+-- ============================================================
+--  HELPER: dapatkan rarity dari hero
+-- ============================================================
 local function getHeroRarity(model)
     local hrp=model:FindFirstChild("HumanoidRootPart"); if not hrp then return nil end
     local bb=hrp:FindFirstChild("HeroBillboard"); if not bb then return nil end
@@ -570,16 +588,23 @@ local function getHeroRarity(model)
     return nil
 end
 
+-- ============================================================
+--  HELPER: dapatkan nama hero dari billboard
+-- ============================================================
 local function getHeroName(model)
     local hrp=model:FindFirstChild("HumanoidRootPart"); if not hrp then return model.Name end
     local bb=hrp:FindFirstChild("HeroBillboard"); if not bb then return model.Name end
     local nl=bb:FindFirstChild("HeroName")
     if nl and nl:IsA("TextLabel") then
+        -- HeroName format: "Paladin (30s)", ambil nama saja
         return nl.Text:match("^(.-)%s*%(") or nl.Text
     end
     return model.Name
 end
 
+-- ============================================================
+--  BUY LOGIC
+-- ============================================================
 local function doBuyHero()
     if dropOpen then closeDropdown(); return end
     if nameDropOpen then closeNameDropdown(); return end
@@ -597,6 +622,7 @@ local function doBuyHero()
             local r=getHeroRarity(h)
             match = r and r:lower()==selectedRarity:lower()
         else
+            -- Mode nama: cocokkan dengan salah satu dari selectedHeroes
             if #selectedHeroes==0 then
                 setStatus("❌ Belum ada hero dipilih!",Color3.fromRGB(255,80,80)); return
             end
@@ -634,6 +660,7 @@ local function doBuyHero()
     end
 end
 
+-- Toggle Buy Hero
 local buyToggle=makeToggle(buyPage,"🛒  Auto Buy Hero",false,5)
 local buyRunning=false
 buyToggle.onChange(function(state)
@@ -682,7 +709,7 @@ local function collectAllIncome()
             else
                 failed += 1
             end
-            task.wait(0.05)
+            task.wait(0.05) -- jeda kecil antar invoke
         end
     end
 
@@ -700,6 +727,7 @@ local acToggle     = makeToggle(farmPage,"Auto Collect Income",false,3)
 local intSlider    = makeSlider(farmPage,"Interval Collect",1,60,10,4)
 makeSep(farmPage,5)
 
+-- Info card
 local infoCard = Instance.new("Frame",farmPage)
 infoCard.Size=UDim2.new(1,0,0,52); infoCard.BackgroundColor3=Color3.fromRGB(20,35,20)
 infoCard.BorderSizePixel=0; infoCard.ZIndex=5; infoCard.LayoutOrder=6
@@ -714,6 +742,7 @@ infoTxt.Font=Enum.Font.Gotham; infoTxt.TextXAlignment=Enum.TextXAlignment.Left; 
 
 makeSep(farmPage,7)
 
+-- Collect once button
 local collectBtn=makeBtn(farmPage,"💰  Collect Sekarang",Color3.fromRGB(180,120,0),8)
 collectBtn.MouseButton1Click:Connect(function()
     collectBtn.Active=false; collectBtn.BackgroundColor3=Color3.fromRGB(120,80,0)
@@ -728,6 +757,7 @@ collectBtn.MouseButton1Click:Connect(function()
     collectBtn.Active=true; collectBtn.BackgroundColor3=Color3.fromRGB(180,120,0)
 end)
 
+-- Auto collect loop
 local collectRunning=false
 acToggle.onChange(function(state)
     collectRunning=state
@@ -750,242 +780,134 @@ acToggle.onChange(function(state)
     end
 end)
 
+
 -- ============================================================
---  PAGE 3: FUSION (FIXED)
+--  PAGE 3: BEST HERO
 -- ============================================================
 local fusePage=pages[3]
-local fuseRunning=false
+local equipRunning=false
+local GetDataRemote=Remotes and Remotes:FindFirstChild("GetPlayerData")
+local PlaceHeroRemote=Remotes and Remotes:FindFirstChild("PlaceHero")
+local PickUpHeroRemote=Remotes and Remotes:FindFirstChild("PickUpHero")
 
--- Cari semua kemungkinan nama remote fuse & data
-local FuseRemote    = Remotes and (Remotes:FindFirstChild("AttemptFuseHero") or Remotes:FindFirstChild("FuseHero") or Remotes:FindFirstChild("Fuse"))
-local GetDataRemote = Remotes and (Remotes:FindFirstChild("GetPlayerData")   or Remotes:FindFirstChild("GetData")  or Remotes:FindFirstChild("PlayerData"))
-
-makeLabel(fusePage,"⚗️  Auto Fuse Hero",14,Color3.fromRGB(200,180,255),1)
+makeLabel(fusePage,"⭐  Auto Equip Best Hero",14,Color3.fromRGB(255,215,0),1)
 makeSep(fusePage,2)
-makeLabel(fusePage,"Otomatis fuse hero yang punya 2+ copy di inventory.",11,Color3.fromRGB(130,130,180),3)
+makeLabel(fusePage,"Otomatis equip hero terbaik (rank tertinggi) ke semua slot base.",11,Color3.fromRGB(180,170,130),3)
 makeSep(fusePage,4)
 
--- Status card
-local fuseCard=Instance.new("Frame",fusePage)
-fuseCard.Size=UDim2.new(1,0,0,54); fuseCard.BackgroundColor3=Color3.fromRGB(20,18,40)
-fuseCard.BorderSizePixel=0; fuseCard.ZIndex=5; fuseCard.LayoutOrder=5
-Instance.new("UICorner",fuseCard).CornerRadius=UDim.new(0,8)
-Instance.new("UIStroke",fuseCard).Color=Color3.fromRGB(100,60,200)
-local fuseTxt=Instance.new("TextLabel",fuseCard)
-fuseTxt.Size=UDim2.new(1,-16,1,0); fuseTxt.Position=UDim2.new(0,8,0,0)
-fuseTxt.BackgroundTransparency=1; fuseTxt.TextWrapped=true
-fuseTxt.Text="⚗️  FuseRemote: "..(FuseRemote and "✅ "..FuseRemote.Name or "❌ Tidak ada")..
-            "\n📦  DataRemote: "..(GetDataRemote and "✅ "..GetDataRemote.Name or "❌ Tidak ada")
-fuseTxt.TextColor3=Color3.fromRGB(180,140,255); fuseTxt.TextSize=11
-fuseTxt.Font=Enum.Font.Gotham; fuseTxt.TextXAlignment=Enum.TextXAlignment.Left; fuseTxt.ZIndex=6
+-- Info card
+local equipCard=Instance.new("Frame",fusePage)
+equipCard.Size=UDim2.new(1,0,0,54); equipCard.BackgroundColor3=Color3.fromRGB(22,20,10)
+equipCard.BorderSizePixel=0; equipCard.ZIndex=5; equipCard.LayoutOrder=5
+Instance.new("UICorner",equipCard).CornerRadius=UDim.new(0,8)
+Instance.new("UIStroke",equipCard).Color=Color3.fromRGB(180,140,0)
+local equipTxt=Instance.new("TextLabel",equipCard)
+equipTxt.Size=UDim2.new(1,-16,1,0); equipTxt.Position=UDim2.new(0,8,0,0)
+equipTxt.BackgroundTransparency=1; equipTxt.TextWrapped=true
+equipTxt.Text="⭐  Klik tombol di bawah untuk equip hero terbaik ke semua slot."
+equipTxt.TextColor3=Color3.fromRGB(255,215,0); equipTxt.TextSize=11
+equipTxt.Font=Enum.Font.Gotham; equipTxt.TextXAlignment=Enum.TextXAlignment.Left; equipTxt.ZIndex=6
 
 makeSep(fusePage,6)
 
--- DEBUG BUTTON
-local debugBtn=makeBtn(fusePage,"🔍  Debug (cek F9 Console)",Color3.fromRGB(50,80,150),7)
-debugBtn.MouseButton1Click:Connect(function()
-    print("===== [BH HUB] REMOTE LIST =====")
-    if Remotes then
-        for _,v in pairs(Remotes:GetChildren()) do
-            print("  "..v.ClassName.." | "..v.Name)
-        end
-    else
-        print("  Remotes folder tidak ditemukan!")
+-- Equip once button
+local equipOnceBtn=makeBtn(fusePage,"⭐  Equip Best Hero Sekarang",Color3.fromRGB(160,120,0),7)
+
+local function doEquipBest()
+    if not GetDataRemote or not PlaceHeroRemote then
+        setStatus("❌ Remote tidak ditemukan",Color3.fromRGB(255,80,80)); return
     end
-    print("===== [BH HUB] DATA DUMP =====")
-    if GetDataRemote then
-        local ok,data=pcall(function() return GetDataRemote:InvokeServer() end)
-        if ok and data then
-            if type(data)=="table" then
-                for k,v in pairs(data) do
-                    if type(v)=="table" then
-                        print("  KEY: "..tostring(k).." (table, "..#v.." items)")
-                        local first=v[1] or next(v)
-                        if type(first)=="table" then
-                            print("    SAMPLE ITEM:")
-                            for fk,fv in pairs(first) do
-                                print("      "..tostring(fk).." = "..tostring(fv))
-                            end
-                        end
-                    else
-                        print("  KEY: "..tostring(k).." = "..tostring(v))
-                    end
-                end
-            else
-                print("  Data bukan table: "..tostring(data))
-            end
-        else
-            print("  InvokeServer gagal: "..tostring(data))
-            print("  (Remote mungkin RemoteEvent, bukan RemoteFunction)")
-        end
-    else
-        print("  GetDataRemote tidak ada — coba key lain:")
-        local candidates={"GetPlayerData","GetData","PlayerData","GetHeroes","GetInventory","LoadData"}
-        for _,name in ipairs(candidates) do
-            local r=Remotes and Remotes:FindFirstChild(name)
-            if r then print("  FOUND: "..name.." ("..r.ClassName..")") end
+    local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
+    if not ok or not data or not data.Heroes then
+        setStatus("❌ Gagal ambil data hero",Color3.fromRGB(255,80,80)); return
+    end
+
+    -- Sort heroes by Rank desc
+    local heroList = {}
+    for _, h in pairs(data.Heroes) do
+        table.insert(heroList, h)
+    end
+    table.sort(heroList, function(a,b)
+        return (a.Rank or 1) > (b.Rank or 1)
+    end)
+
+    local totalSlots = data.UnlockedHeroSlots or 10
+
+    -- Cari hero yang sudah di-place
+    local placed = {}
+    local placedCount = 0
+    for _, h in pairs(data.Heroes) do
+        if h.PlaceInHand then
+            placed[h.UniqueId] = true
+            placedCount = placedCount + 1
         end
     end
-    print("===== [BH HUB] BASE BRAINROTS =====")
-    local base=getPlayerBase()
-    if base then
-        local br=base:FindFirstChild("Brainrots")
-        print("  Base: "..base.Name)
-        print("  Brainrots count: "..(br and #br:GetChildren() or 0))
-    else
-        print("  Base tidak ditemukan")
+
+    -- Ambil top N hero yang belum di-place
+    local toPlace = {}
+    for _, h in pairs(heroList) do
+        if not placed[h.UniqueId] then
+            table.insert(toPlace, h)
+        end
+        if #toPlace + placedCount >= totalSlots then break end
     end
-    setStatus("🔍 Debug dicetak ke F9",Color3.fromRGB(100,180,255))
+
+    if #toPlace == 0 then
+        setStatus("✅ Semua slot sudah terisi hero terbaik!",Color3.fromRGB(50,220,100)); return
+    end
+
+    setStatus("⭐ Equipping "..#toPlace.." hero terbaik...",Color3.fromRGB(255,215,0))
+    for i, h in ipairs(toPlace) do
+        pcall(function() PlaceHeroRemote:FireServer(h) end)
+        task.wait(0.3)
+        setStatus("⭐ Equip "..i.."/"..#toPlace..": "..h.HeroId.." Rank "..(h.Rank or 1),Color3.fromRGB(255,215,0))
+    end
+    setStatus("✅ "..#toPlace.." hero terbaik berhasil di-equip!",Color3.fromRGB(50,220,100))
+end
+
+equipOnceBtn.MouseButton1Click:Connect(function()
+    equipOnceBtn.Active=false; equipOnceBtn.BackgroundColor3=Color3.fromRGB(100,80,0)
+    doEquipBest()
+    task.wait(0.5)
+    equipOnceBtn.Active=true; equipOnceBtn.BackgroundColor3=Color3.fromRGB(160,120,0)
 end)
 
 makeSep(fusePage,8)
 
--- ============================================================
---  FUSE LOGIC (robust)
--- ============================================================
-local function tryFireRemote(remote, ...)
-    local ok, res = pcall(function() return remote:InvokeServer(...) end)
-    if ok then return true, res end
-    local ok2, res2 = pcall(function() remote:FireServer(...) end)
-    if ok2 then return true, nil end
-    return false, tostring(res)
-end
-
-local function getHeroesFromData(data)
-    if not data or type(data) ~= "table" then return nil end
-    local candidates = {"Heroes","Heros","Inventory","Units","Characters","HeroList"}
-    for _, key in ipairs(candidates) do
-        if data[key] and type(data[key]) == "table" then
-            return data[key]
-        end
-    end
-    if data[1] and type(data[1]) == "table" then
-        return data
-    end
-    return nil
-end
-
-local function getHeroUniqueId(hero)
-    return hero.UniqueId or hero.Id or hero.ID or hero.HeroUID or hero.uuid or hero.UUID
-end
-
-local function getHeroGroupKey(hero)
-    return hero.HeroId or hero.Name or hero.HeroName or hero.Type or hero.heroId
-end
-
-local function doFuse()
-    if not FuseRemote then
-        setStatus("❌ FuseRemote tidak ditemukan — tekan Debug",Color3.fromRGB(255,80,80))
-        return 0
-    end
-    if not GetDataRemote then
-        setStatus("❌ GetDataRemote tidak ditemukan — tekan Debug",Color3.fromRGB(255,80,80))
-        return 0
-    end
-
-    local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
-    if not ok or not data then
-        setStatus("❌ Gagal ambil data: "..tostring(data).."\nCoba tekan Debug",Color3.fromRGB(255,80,80))
-        return 0
-    end
-
-    local heroes = getHeroesFromData(data)
-    if not heroes then
-        setStatus("❌ Struktur data tidak dikenali — tekan Debug dulu!",Color3.fromRGB(255,80,80))
-        return 0
-    end
-
-    -- Grouping hero berdasarkan key
-    local groups = {}
-    for _, hero in pairs(heroes) do
-        local key = getHeroGroupKey(hero)
-        if key then
-            if not groups[key] then groups[key] = {} end
-            table.insert(groups[key], hero)
-        end
-    end
-
-    local fuseCount = 0
-    local tried = 0
-
-    for heroKey, group in pairs(groups) do
-        local needed = 2
-        if group[1] and group[1].Rank then
-            needed = math.max(2, (group[1].Rank or 1) + 1)
-        end
-
-        if #group >= needed then
-            tried += 1
-            local uid1 = getHeroUniqueId(group[1])
-            local uid2 = getHeroUniqueId(group[2])
-
-            setStatus("⚗️ Fusing "..tostring(heroKey).."...",Color3.fromRGB(180,140,255))
-
-            local fOk, fRes
-            if uid1 and uid2 then
-                -- Format 1: dua uid terpisah
-                fOk, fRes = tryFireRemote(FuseRemote, uid1, uid2)
-                if not fOk then
-                    -- Format 2: tabel berisi dua uid
-                    fOk, fRes = tryFireRemote(FuseRemote, {uid1, uid2})
-                end
-                if not fOk then
-                    -- Format 3: uid pertama saja
-                    fOk, fRes = tryFireRemote(FuseRemote, uid1)
-                end
-            elseif uid1 then
-                fOk, fRes = tryFireRemote(FuseRemote, uid1)
-            else
-                -- Fallback pakai nama hero
-                fOk, fRes = tryFireRemote(FuseRemote, heroKey)
+-- Auto equip toggle
+local equipToggle=makeToggle(fusePage,"⭐  Auto Equip Best (tiap 30s)",false,9)
+equipToggle.onChange(function(state)
+    equipRunning=state
+    if state then
+        setStatus("⭐ Auto Equip Best ON",Color3.fromRGB(255,215,0))
+        task.spawn(function()
+            while equipRunning do
+                doEquipBest()
+                task.wait(30)
             end
-
-            if fOk then
-                fuseCount += 1
-                setStatus("✅ Fuse "..tostring(heroKey).." berhasil! ("..fuseCount.." total)",Color3.fromRGB(50,220,100))
-            else
-                print("[BH HUB] Fuse gagal untuk "..tostring(heroKey)..": "..tostring(fRes))
-                setStatus("⚠️ Fuse "..tostring(heroKey).." gagal — cek F9",Color3.fromRGB(255,150,50))
-            end
-            task.wait(1.2)
-        end
+        end)
+    else
+        setStatus("✅ Auto Equip dimatikan",Color3.fromRGB(100,220,130))
     end
-
-    if tried == 0 then
-        setStatus("ℹ️  Tidak ada hero dengan 2+ copy",Color3.fromRGB(150,150,200))
-    elseif fuseCount == 0 then
-        setStatus("⚠️  Hero ditemukan tapi semua fuse gagal — cek F9",Color3.fromRGB(255,150,50))
-    end
-
-    return fuseCount
-end
-
--- Fuse once button
-local fuseOnceBtn=makeBtn(fusePage,"⚗️  Fuse Sekarang",Color3.fromRGB(100,50,200),9)
-fuseOnceBtn.MouseButton1Click:Connect(function()
-    fuseOnceBtn.Active=false; fuseOnceBtn.BackgroundColor3=Color3.fromRGB(60,30,120)
-    doFuse()
-    task.wait(0.5)
-    fuseOnceBtn.Active=true; fuseOnceBtn.BackgroundColor3=Color3.fromRGB(100,50,200)
 end)
 
 makeSep(fusePage,10)
 
--- Auto fuse toggle
-local fuseToggle=makeToggle(fusePage,"⚗️  Auto Fuse",false,11)
-fuseToggle.onChange(function(state)
-    fuseRunning=state
-    if state then
-        setStatus("⚗️ Auto Fuse ON",Color3.fromRGB(180,140,255))
-        task.spawn(function()
-            while fuseRunning do
-                doFuse()
-                task.wait(5)
-            end
-        end)
-    else
-        setStatus("✅ Auto Fuse dimatikan",Color3.fromRGB(100,220,130))
+-- Unequip all button
+local unequipBtn=makeBtn(fusePage,"🗑️  Unequip Semua Hero",Color3.fromRGB(120,40,40),11)
+unequipBtn.MouseButton1Click:Connect(function()
+    if not GetDataRemote or not PickUpHeroRemote then return end
+    local ok, data = pcall(function() return GetDataRemote:InvokeServer() end)
+    if not ok or not data then return end
+    local count = 0
+    for _, h in pairs(data.Heroes) do
+        if h.PlaceInHand then
+            pcall(function() PickUpHeroRemote:FireServer(h) end)
+            task.wait(0.2)
+            count = count + 1
+        end
     end
+    setStatus("🗑️ "..count.." hero di-unequip",Color3.fromRGB(200,100,100))
 end)
 
 -- ============================================================
@@ -1042,12 +964,14 @@ CloseBtn.MouseButton1Click:Connect(function() collectRunning=false; Gui:Destroy(
 -- ============================================================
 local dragging,dragStart,startPos2=false,nil,nil
 
+-- Drag: deteksi klik di title bar via UserInputService
 UserInputService.InputBegan:Connect(function(inp, processed)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 then
         local mousePos = UserInputService:GetMouseLocation()
         local winPos   = Win.AbsolutePosition
         local relX = mousePos.X - winPos.X
         local relY = mousePos.Y - winPos.Y
+        -- Cek apakah klik di dalam area title bar
         if relX >= 0 and relX <= Win.AbsoluteSize.X
         and relY >= 0 and relY <= TITLE_H then
             dragging   = true
